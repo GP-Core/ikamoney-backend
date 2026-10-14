@@ -43,7 +43,7 @@ Copy-Item .env.example .env
 | `CORS_ORIGINS`  | No          | Orígenes permitidos, separados por comas. Por defecto `http://localhost:5173`. |
 | `AI_API_KEY`    | No          | Clave para la integración con IA (aún no se usa).                  |
 
-> ⚠️ No subas el `.env` al repositorio: contiene contraseñas. Ya está incluido en `.gitignore`; el que se versiona es `.env.example`.
+
 
 ## Ejecutar con Docker (recomendado)
 
