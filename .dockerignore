@@ -1,0 +1,26 @@
+# Variables de entorno (contienen contraseñas). Compose las inyecta con env_file.
+.env
+.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Control de versiones
+.git/
+.gitignore
+
+# Docker (no hacen falta dentro de la imagen)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# init.sql lo monta el contenedor de MySQL, no la API
+db/
+
+# Pruebas y documentación
+tests/
+README.md
+CLAUDE.md
+.claude/

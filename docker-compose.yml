@@ -1,0 +1,35 @@
+services:
+    api:
+        build: .
+        ports:
+            - "8000:8000"
+        volumes:
+            - .:/app
+        env_file:
+            - .env
+        command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+        depends_on:
+            db:
+                condition: service_healthy
+
+    db:
+        image: mysql:8.0
+        environment:
+            MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+            MYSQL_DATABASE: ${MYSQL_DATABASE}
+            MYSQL_USER: ${MYSQL_USER}
+            MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+        ports:
+            - "${MYSQL_PORT:-3306}:3306"
+        volumes:
+            - ikamoney_db_data:/var/lib/mysql
+            - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+        healthcheck:
+            test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+            interval: 5s
+            timeout: 5s
+            retries: 20
+
+volumes:
+  ikamoney_db_data:

@@ -1,0 +1,12 @@
+# Variables de entorno (contienen contraseñas). El .env.example sí se versiona.
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Entorno virtual
+.venv/
+
+# Instrucciones locales 
+CLAUDE.md
