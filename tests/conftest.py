@@ -17,7 +17,7 @@ from app import models  # noqa: E402,F401
 from app.core.database import Base, get_db  # noqa: E402
 from app.core.seguridad import crear_token  # noqa: E402
 from app.main import app  # noqa: E402
-from app.models import Usuario  # noqa: E402
+from app.models import Categoria, Usuario  # noqa: E402
 from app.services import fechas  # noqa: E402
 
 HOY = date(2026, 3, 15)
@@ -95,3 +95,13 @@ def tarjeta(client, h):
     r = client.post("/api/v1/tarjetas", json=TARJETA, headers=h)
     assert r.status_code == 201, r.text
     return r.json()
+
+
+@pytest.fixture
+def cat():
+    """Una categoría base ('Vivienda'); devuelve su id."""
+    with TestSession() as db:
+        c = Categoria(usuario_id=None, nombre="Vivienda")
+        db.add(c)
+        db.commit()
+        return c.id

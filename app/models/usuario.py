@@ -1,5 +1,3 @@
-"""usuario y categoria (T18). Si el módulo de auth ya define Usuario, borra esta clase
-e importa la del equipo en app/models/__init__.py."""
 from typing import Optional
 
 from sqlalchemy import CHAR, String, UniqueConstraint

@@ -1,4 +1,3 @@
-"""Tipos y utilidades comunes a los modelos (convenciones de T18 §2)."""
 from datetime import datetime
 
 from sqlalchemy import TIMESTAMP, ForeignKey, Integer, Numeric, SmallInteger, func

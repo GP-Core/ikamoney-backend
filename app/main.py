@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import deudas, health, msi, tarjetas
+from app.api.routes import categorias, deudas, health, movimientos, msi, tarjetas
 from app.core.config import settings
 from app.core.errores import registrar_manejadores
 
@@ -22,3 +22,5 @@ app.include_router(health.router, prefix="/api")
 app.include_router(tarjetas.router, prefix="/api/v1")
 app.include_router(deudas.router, prefix="/api/v1")
 app.include_router(msi.router, prefix="/api/v1")
+app.include_router(categorias.router, prefix="/api/v1")
+app.include_router(movimientos.router, prefix="/api/v1")

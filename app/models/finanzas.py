@@ -1,5 +1,3 @@
-"""tarjeta, estado_cuenta, plan_msi, movimiento y deuda (T18).
-El borrado en cascada lo hace la base de datos (ON DELETE), como pide T18 §3."""
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Optional
