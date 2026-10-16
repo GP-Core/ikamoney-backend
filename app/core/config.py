@@ -11,6 +11,15 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     ai_api_key: str = ""
 
+    # --- Autenticación (T17: JWT, vence en 24 h) ---
+    jwt_secret: str = "cambia_esto_en_produccion"
+    jwt_algorithm: str = "HS256"
+    jwt_horas: int = 24
+
+    # --- Reglas de negocio ---
+    zona_horaria: str = "America/Mexico_City"
+    max_mensualidades: int = 60  # tope razonable para MSI (T18 solo fija el mínimo: 2)
+
     model_config = SettingsConfigDict(env_file=ROOT_ENV, extra="ignore")
 
     @property
