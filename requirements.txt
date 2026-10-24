@@ -6,6 +6,11 @@ cryptography==43.0.1
 pydantic-settings==2.5.2
 PyJWT==2.9.0
 tzdata==2024.2
+python-multipart==0.0.12
+# --- estados de cuenta (T31): lectura del PDF y cliente de IA ---
+pdfplumber==0.11.10
+google-genai==2.25.0
+httpx==0.28.1
 # --- pruebas ---
 pytest==8.3.3
-httpx==0.27.2
+pypdf==6.21.2

@@ -4,7 +4,7 @@ API de IKAMONEY construida con **FastAPI**, **SQLAlchemy 2.0** y **MySQL 8**, li
 
 > El frontend vive en un repositorio aparte (`ikamoney-frontend`, app de Vite que corre en `http://localhost:5173`).
 
-Incluye los endpoints de tarjetas, deudas, planes MSI, ingresos y gastos (fijos y variables) y categorías. El detalle de cada uno está en [`docs/IMPLEMENTACION_T27_T29.md`](docs/IMPLEMENTACION_T27_T29.md).
+Incluye los endpoints de tarjetas, deudas, planes MSI, ingresos y gastos (fijos y variables) y categorías, cuyo detalle está en [`docs/IMPLEMENTACION.md`](docs/IMPLEMENTACION.md), y la lectura de estados de cuenta en PDF con IA, descrita en [`docs/ESTADOS_CUENTA.md`](docs/ESTADOS_CUENTA.md).
 
 ## Stack
 
@@ -66,7 +66,7 @@ Abre `.env` y cambia los valores `cambia_esto`:
 | `DATABASE_URL` | `mysql+pymysql://<MYSQL_USER>:<MYSQL_PASSWORD>@db:3306/<MYSQL_DATABASE>` |
 | `JWT_SECRET` | Una cadena larga y aleatoria para firmar los tokens |
 | `CORS_ORIGINS` | Orígenes del frontend, separados por comas (por defecto `http://localhost:5173`) |
-| `AI_API_KEY` | Opcional. Aún no se usa |
+| `AI_API_KEY` | Llave de la API de Gemini para leer estados de cuenta. Sin ella, `/estados-cuenta/extraer` responde 503 |
 
 Dos detalles de `DATABASE_URL`:
 
@@ -134,7 +134,7 @@ La documentación interactiva (Swagger) está en **http://localhost:8000/docs**.
 docker compose exec api pytest -v
 ```
 
-Deben pasar las 136 pruebas. Usan SQLite en memoria, así que no tocan tu base de MySQL.
+Deben pasar las 247 pruebas. Usan SQLite en memoria, así que no tocan tu base de MySQL, y un cliente de IA falso, así que no llaman a Gemini.
 
 ---
 
@@ -187,7 +187,7 @@ curl http://localhost:8000/api/v1/categorias -H "Authorization: Bearer $TOKEN"
 
 Los `id` de categorías, tarjetas y demás son **números reales** que devuelve la API. No uses texto como `ID_VIVIENDA`: consulta primero `GET /categorias`.
 
-Más ejemplos con cada endpoint: [`docs/IMPLEMENTACION_T27_T29.md`](docs/IMPLEMENTACION_T27_T29.md).
+Más ejemplos con cada endpoint: [`docs/IMPLEMENTACION.md`](docs/IMPLEMENTACION.md). Para subir un estado de cuenta: [`docs/ESTADOS_CUENTA.md`](docs/ESTADOS_CUENTA.md).
 
 ---
 
