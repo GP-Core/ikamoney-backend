@@ -3,8 +3,13 @@
 Lee de la base de datos los ingresos, gastos, tarjetas, planes MSI y deudas del usuario de la
 sesión, los convierte en las variables de entrada de T25 y aplica las fórmulas de
 app/services/formulas.py. Solo lee: no modifica nada ni llama a recalcular().
+
+preparar() también la usa el score (T35), para que balance y score partan de los mismos datos.
 """
+from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
+from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -89,12 +94,30 @@ def _mes_out(m: formulas.MesProyectado, periodo: tuple[int, int]) -> MesOut:
                   for t in m.tarjetas])
 
 
-def calcular(db: Session, usuario: Usuario, meses: int = formulas.HORIZONTE_DEFECTO,
-             ahorro_inicial: Decimal = CERO) -> ProyeccionOut:
-    """Balance del mes en curso (mes 1) y proyección de `meses` meses (T25, Fórmulas 1 a 3)."""
+@dataclass
+class Preparacion:
+    """Datos del usuario ya convertidos a las variables de entrada de T25."""
+    hoy: date
+    periodos: list[tuple[int, int]]
+    ingresos: list
+    gastos: list
+    tarjetas: list
+    planes: list
+    deudas: list
+    gastos_variables_estimados: Decimal
+    base_gastos_variables: str
+    entrada: Optional[EntradaProyeccion]      # None si el usuario no tiene ningún dato
+
+    @property
+    def mes_inicio(self) -> str:
+        return f"{self.hoy.year:04d}-{self.hoy.month:02d}"
+
+
+def preparar(db: Session, usuario: Usuario, meses: int = formulas.HORIZONTE_DEFECTO,
+             ahorro_inicial: Decimal = CERO) -> Preparacion:
+    """Lee los datos del usuario y arma la entrada de las Fórmulas 1 a 3."""
     hoy = fechas.hoy_mx()
     periodos = _periodos(hoy.year, hoy.month, meses)
-    mes_inicio = f"{hoy.year:04d}-{hoy.month:02d}"
     ingresos, gastos, tarjetas, planes, deudas = _datos_usuario(db, usuario)
     fijos = [g for g in gastos if g.tipo == "fijo"]
     variables = [g for g in gastos if g.tipo == "variable"]
@@ -111,12 +134,44 @@ def calcular(db: Session, usuario: Usuario, meses: int = formulas.HORIZONTE_DEFE
     else:
         estimado, base = CERO, "sin_registros"
 
+    entrada = None
+    if ingresos or gastos or tarjetas or planes or deudas:
+        entrada = EntradaProyeccion(
+            ingresos=[_total_en_mes(ingresos, a, m) for a, m in periodos],
+            gastos_fijos=[_total_en_mes(fijos, a, m) for a, m in periodos],
+            gastos_variables=[max(r, estimado) for r in registrados],
+            ahorro_inicial=ahorro_inicial,
+            tarjetas=[TarjetaEntrada(id=t.id, nombre=t.nombre, saldo=t.saldo_actual,
+                                     limite=t.limite_credito, tasa_anual=_tasa(t.tasa_anual))
+                      for t in tarjetas],
+            planes_msi=[MsiEntrada(id=p.id, descripcion=p.descripcion, monto=p.monto_original,
+                                   plazo=p.num_mensualidades, pagadas=p.mensualidades_pagadas,
+                                   mensualidad=p.monto_mensualidad)
+                        for p in planes],
+            deudas=[DeudaEntrada(id=d.id, nombre=d.nombre, saldo=d.saldo_actual,
+                                 pago_mensual=d.pago_mensual or CERO,
+                                 tasa_anual=_tasa(d.tasa_anual))
+                    for d in deudas])
+    return Preparacion(hoy=hoy, periodos=periodos, ingresos=ingresos, gastos=gastos,
+                       tarjetas=tarjetas, planes=planes, deudas=deudas,
+                       gastos_variables_estimados=estimado, base_gastos_variables=base,
+                       entrada=entrada)
+
+
+def calcular(db: Session, usuario: Usuario, meses: int = formulas.HORIZONTE_DEFECTO,
+             ahorro_inicial: Decimal = CERO) -> ProyeccionOut:
+    """Balance del mes en curso (mes 1) y proyección de `meses` meses (T25, Fórmulas 1 a 3)."""
+    prep = preparar(db, usuario, meses, ahorro_inicial)
+    periodos, mes_inicio = prep.periodos, prep.mes_inicio
+    tarjetas, deudas = prep.tarjetas, prep.deudas
+
     supuestos = SupuestosOut(ahorro_inicial=_c(ahorro_inicial),
-                             gastos_variables_estimados=_c(estimado),
-                             base_gastos_variables=base, pago_tarjetas="minimo", nota=NOTA)
+                             gastos_variables_estimados=_c(prep.gastos_variables_estimados),
+                             base_gastos_variables=prep.base_gastos_variables,
+                             pago_tarjetas="minimo", nota=NOTA)
 
     # Usuario recién registrado: nada que proyectar (REQ-BP-05 pide una guía, no gráficas vacías)
-    if not (ingresos or gastos or tarjetas or planes or deudas):
+    if prep.entrada is None:
         return ProyeccionOut(
             estado="sin_datos", mes_inicio=mes_inicio, meses=meses,
             avisos=[AvisoOut(codigo="SIN_DATOS",
@@ -124,21 +179,7 @@ def calcular(db: Session, usuario: Usuario, meses: int = formulas.HORIZONTE_DEFE
                                      "balance y tu proyección.")],
             supuestos=supuestos, balance_mes=None, proyeccion=[], resumen=None)
 
-    entrada = EntradaProyeccion(
-        ingresos=[_total_en_mes(ingresos, a, m) for a, m in periodos],
-        gastos_fijos=[_total_en_mes(fijos, a, m) for a, m in periodos],
-        gastos_variables=[max(r, estimado) for r in registrados],
-        ahorro_inicial=ahorro_inicial,
-        tarjetas=[TarjetaEntrada(id=t.id, nombre=t.nombre, saldo=t.saldo_actual,
-                                 limite=t.limite_credito, tasa_anual=_tasa(t.tasa_anual))
-                  for t in tarjetas],
-        planes_msi=[MsiEntrada(id=p.id, descripcion=p.descripcion, monto=p.monto_original,
-                               plazo=p.num_mensualidades, pagadas=p.mensualidades_pagadas,
-                               mensualidad=p.monto_mensualidad)
-                    for p in planes],
-        deudas=[DeudaEntrada(id=d.id, nombre=d.nombre, saldo=d.saldo_actual,
-                             pago_mensual=d.pago_mensual or CERO, tasa_anual=_tasa(d.tasa_anual))
-                for d in deudas])
+    entrada = prep.entrada
     resultado = formulas.proyectar(entrada, meses)
 
     # Avisos (casos especiales de T25 y datos incompletos)

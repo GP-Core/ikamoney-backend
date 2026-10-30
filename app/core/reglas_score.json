@@ -1,0 +1,60 @@
+{
+  "version_modelo": "T25-v1",
+  "fuente": "Anexo T25, Índice de Salud Financiera (Fórmulas 11 a 14). Umbrales de T24.",
+  "nota": "Los pesos están en porcentaje y deben sumar 100. Cambiar un peso o un punto de referencia aquí cambia el score sin tocar el código; cualquier cambio se debe reflejar también en T25 y en la hoja T26, y subir version_modelo.",
+  "factores": [
+    {
+      "clave": "relacion_deuda_ingreso",
+      "nombre": "Relación deuda-ingreso",
+      "formula": "F11: (pagos mínimos + mensualidades MSI + otras cuotas) / ingreso × 100",
+      "peso": 30,
+      "puntos_referencia": [[0, 100], [30, 100], [40, 50], [50, 0]],
+      "fuente_puntos": "T24: ideal hasta 30 % del ingreso neto, máximo recomendable 35–40 %, desde 50 % sin margen (CONDUSEF, Buró de Crédito, BBVA).",
+      "justificacion_peso": "Es el indicador que usan CONDUSEF, Buró de Crédito y BBVA para medir la capacidad de pago (T24): dice si el ingreso alcanza para los compromisos del mes. Por eso es el factor con más peso."
+    },
+    {
+      "clave": "utilizacion_credito",
+      "nombre": "Utilización de crédito",
+      "formula": "F12: (saldos de tarjetas + pendiente de MSI) / suma de límites × 100",
+      "peso": 25,
+      "puntos_referencia": [[0, 100], [10, 100], [30, 80], [50, 40], [100, 0]],
+      "fuente_puntos": "T24: menos de 30 % recomendado, desde 50 % riesgo (Buró de Crédito); 10 % o menos como uso excelente (Experian, FICO).",
+      "justificacion_peso": "Buró de Crédito recomienda usar menos de la mitad de la línea y FICO dedica 30 % de su score a los montos adeudados (T24). Pesa menos que la deuda-ingreso porque una línea muy usada no siempre significa pagos mensuales altos. Si el usuario no tiene tarjetas, se omite y su peso se reparte (regla 3 de T25).",
+      "omitible": true
+    },
+    {
+      "clave": "flujo_libre",
+      "nombre": "Flujo libre",
+      "formula": "F13: flujo del mes / ingreso × 100",
+      "peso": 25,
+      "puntos_referencia": [[-20, 0], [0, 40], [20, 100]],
+      "fuente_puntos": "Propuesta del equipo (T25): quedarse sin margen (0 %) vale 40 puntos y ahorrar 20 % o más del ingreso vale 100.",
+      "justificacion_peso": "Es el eje preventivo de IKAMONEY: el dinero que queda después de cubrir gastos y compromisos (Fórmula 3 de T33). Pesa igual que la utilización, y un flujo negativo además activa el tope de 59 puntos."
+    },
+    {
+      "clave": "carga_msi",
+      "nombre": "Carga de MSI",
+      "formula": "F14: mensualidades MSI del mes / ingreso × 100",
+      "peso": 10,
+      "puntos_referencia": [[0, 100], [10, 100], [25, 0]],
+      "fuente_puntos": "Propuesta del equipo (T25), a partir de T24: varios planes pequeños pueden llevar la deuda-ingreso arriba de 30 % sin que el usuario lo note.",
+      "justificacion_peso": "Las mensualidades MSI ya cuentan dentro de la deuda-ingreso; este factor solo agrega una señal propia de los MSI, que son el diferenciador del producto, con poco peso para no contarlas dos veces."
+    },
+    {
+      "clave": "comportamiento_pago",
+      "nombre": "Comportamiento de pago",
+      "formula": "Categoría del último periodo: pago total, más del mínimo, solo mínimo o con atraso",
+      "peso": 10,
+      "subpuntajes_categoria": {
+        "pago_total": 100,
+        "mas_del_minimo": 60,
+        "solo_minimo": 20,
+        "con_atraso": 0
+      },
+      "fuente_puntos": "T25, a partir de T23: pagar solo el mínimo alarga la deuda y multiplica los intereses; el atraso genera cargos y afecta el historial.",
+      "justificacion_peso": "Pagar solo el mínimo o con atraso encarece la deuda (T23), pero hoy este dato no se verifica con el banco, así que pesa poco. El atraso además activa el tope de 59 puntos."
+    }
+  ],
+  "comportamiento_por_defecto": "solo_minimo",
+  "tope_riesgo_inmediato": 59
+}
