@@ -1,6 +1,9 @@
 """Fórmulas 1, 2 y 3 de T25 (proyección financiera), más las fórmulas 5 y 6 que la proyección
 necesita para el interés y el pago mínimo de cada tarjeta.
 
+La Fórmula 3 incluye CompraContado_t: la usa el simulador de compras (T41, Fórmula 4) para
+meter una compra de contado. En la proyección normal (T33) siempre vale cero.
+
 Este módulo es puro: no conoce la base de datos ni FastAPI. Recibe números y devuelve números,
 así se puede comparar directamente con la hoja de referencia de T26.
 
@@ -74,6 +77,8 @@ class EntradaProyeccion:
     tarjetas: list[TarjetaEntrada] = field(default_factory=list)
     planes_msi: list[MsiEntrada] = field(default_factory=list)
     deudas: list[DeudaEntrada] = field(default_factory=list)
+    # CompraContado_t de la Fórmula 3 (índice 0 = mes 1). Vacía = sin compras de contado.
+    compras_contado: list[Decimal] = field(default_factory=list)
 
 
 # -------------------------------------------------------------------- salidas
@@ -100,6 +105,7 @@ class MesProyectado:
     acumulado: Decimal
     msi_activos: int
     tarjetas: list[TarjetaMes]
+    compra_contado: Decimal = CERO   # CompraContado_t (solo en simulaciones, T41)
 
     @property
     def compromisos(self) -> Decimal:
@@ -190,7 +196,7 @@ def proyectar(entrada: EntradaProyeccion, meses: int = HORIZONTE_DEFECTO) -> Pro
 
     Fórmula 2: Saldo_k,t+1 = Saldo_k,t + Interés_k,t − Pago_k,t
     Fórmula 3: Flujo_t = ingreso − gastos_fijos − gastos_variables − ΣPago_k,t
-                        − ΣMensualidad_j,t − otras_cuotas
+                        − ΣMensualidad_j,t − otras_cuotas − CompraContado_t
                Acumulado_t = Acumulado_t−1 + Flujo_t, con Acumulado_0 = ahorro_inicial
     """
     if not HORIZONTE_MIN <= meses <= HORIZONTE_MAX:
@@ -235,14 +241,17 @@ def proyectar(entrada: EntradaProyeccion, meses: int = HORIZONTE_DEFECTO) -> Pro
             ingresos = entrada.ingresos[t - 1]
             fijos = entrada.gastos_fijos[t - 1]
             variables = entrada.gastos_variables[t - 1]
-            flujo = ingresos - fijos - variables - pagos_tarjetas - mensualidades - cuotas
+            contado = (entrada.compras_contado[t - 1]
+                       if t <= len(entrada.compras_contado) else CERO)
+            flujo = (ingresos - fijos - variables - pagos_tarjetas - mensualidades - cuotas
+                     - contado)
             acumulado = acumulado + flujo
 
             resultado.append(MesProyectado(
                 mes=t, ingresos=ingresos, gastos_fijos=fijos, gastos_variables=variables,
                 pagos_tarjetas=pagos_tarjetas, mensualidades_msi=mensualidades,
                 otras_cuotas=cuotas, flujo=flujo, acumulado=acumulado,
-                msi_activos=len(activos), tarjetas=detalle))
+                msi_activos=len(activos), tarjetas=detalle, compra_contado=contado))
 
     return Proyeccion(meses=resultado)
 
