@@ -7,7 +7,7 @@ Si cambia, avisar a T40 y a la pantalla del simulador antes.
 """
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.base import Dinero, Entrada
 from app.schemas.score import FaltanteOut, Nivel
@@ -45,6 +45,20 @@ class SimulacionPedido(Entrada):
     prioridad: Prioridad                                 # REQ-SC-02
     ahorro_inicial: Dinero = Field(default=0, ge=0)      # Acumulado_0 de la Fórmula 3
     escenarios: list[EscenarioPedido] = Field(min_length=1, max_length=MAX_ESCENARIOS)
+
+
+class SimulacionPeticion(SimulacionPedido):
+    """Cuerpo de POST /simulador/calcular (T40). Igual que SimulacionPedido, pero `escenarios` es
+    opcional: si no se manda (o llega vacío), el endpoint evalúa los escenarios por omisión
+    (services/simulaciones.py). Al motor siempre le llega un SimulacionPedido completo."""
+    escenarios: Optional[list[EscenarioPedido]] = None
+
+    @field_validator("escenarios")
+    @classmethod
+    def _maximo(cls, valor):
+        if valor is not None and len(valor) > MAX_ESCENARIOS:
+            raise ValueError(f"Máximo {MAX_ESCENARIOS} escenarios.")
+        return valor
 
 
 # -------------------------------------------------------------------- salida
