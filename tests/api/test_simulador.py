@@ -235,7 +235,6 @@ def test_horizonte_cubre_el_plazo_mas_largo(uid, perfil_t26):
     dieciocho = d["escenarios"][1]
     assert dieciocho["balance"][17]["compra"] == 500 and dieciocho["mensualidad"] == 500
 
-
 # --------------------------------------------------------- RN-17 y RNF
 def test_simular_no_modifica_datos(uid, perfil_t26):
     a, _ = perfil_t26
