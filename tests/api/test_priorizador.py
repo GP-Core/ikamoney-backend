@@ -91,7 +91,7 @@ def test_estructura_de_respuesta(client, h, perfil_t26):
     d = client.get(URL, headers=h).json()
     assert set(d) == {"estado", "periodo", "ranking", "sin_ranking", "resumen",
                       "intereses_mes_total", "pagos_minimos_total", "msi_mes_total",
-                      "bola_de_nieve", "supuestos"}
+                      "bola_de_nieve", "supuestos", "plan"}
     assert set(d["ranking"][0]) == {"posicion", "clave", "tipo", "id", "nombre", "saldo",
                                     "tasa_anual", "tasa_mensual", "costo_anual_compuesto",
                                     "interes_mes", "utilizacion", "pago_minimo", "ahorro_por_mil",

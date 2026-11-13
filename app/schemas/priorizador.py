@@ -1,8 +1,8 @@
 """Esquemas de GET /priorizador: deudas y tarjetas ordenadas por costo real (T43, Fórmula 9
 de T25).
 
-Es la estructura que consume la pantalla del ranking (T44) y el plan de pagos (T45).
-Si cambia, avisar a los dos antes.
+Es la estructura que consumen la pantalla del ranking (T44) y la vista del plan de pagos
+(T46). La sección `plan` la calcula T45 (Fórmula 10). Si cambia, avisar a los dos antes.
 """
 from typing import Literal, Optional
 
@@ -68,6 +68,68 @@ class BolaDeNieveOut(BaseModel):
     mensaje: str
 
 
+# ------------------------------------------------------------ plan de pagos (T45)
+class AvisoPlanOut(BaseModel):
+    codigo: Literal["EXCEDENTE_NO_SOSTENIBLE", "SIN_DINERO_EXTRA", "BASE_NO_SE_LIQUIDA",
+                    "PLAN_NO_SE_LIQUIDA", "DEUDA_SIN_PAGO_MENSUAL"]
+    mensaje: str
+
+
+class DeudaPlanOut(BaseModel):
+    """Cómo termina cada deuda con el plan y con el escenario base."""
+    clave: str
+    nombre: str
+    posicion: int                        # la del ranking (T43)
+    meses_plan: Optional[int]            # None si no se liquida en el horizonte
+    liquidacion_plan: Optional[str]      # AAAA-MM del mes en que queda en cero
+    intereses_plan: Optional[Dinero]     # None si con el plan no se liquida
+    meses_base: Optional[int]            # pagando solo el mínimo
+    liquidacion_base: Optional[str]
+    intereses_base: Optional[Dinero]     # None si con el mínimo nunca se liquida
+
+
+class PagoMesOut(BaseModel):
+    clave: str
+    pago: Dinero                         # mínimo + abono extra
+    abono_extra: Dinero                  # lo que va por encima del mínimo
+    saldo_final: Dinero
+
+
+class MesPlanOut(BaseModel):
+    mes: int                             # 1 = mes en curso
+    periodo: str                         # AAAA-MM
+    pagos: list[PagoMesOut]              # solo las deudas que todavía tienen saldo
+    total_pagado: Dinero
+    intereses: Dinero
+    saldo_total: Dinero                  # lo que se sigue debiendo al terminar el mes
+
+
+class TotalPlanOut(BaseModel):
+    meses_plan: Optional[int]
+    liquidacion_plan: Optional[str]
+    intereses_plan: Optional[Dinero]     # None si el plan no liquida todo
+    meses_base: Optional[int]
+    liquidacion_base: Optional[str]
+    intereses_base: Optional[Dinero]
+    ahorro: Optional[Dinero]             # intereses_base − intereses_plan
+    meses_menos: Optional[int]           # meses_base − meses_plan
+
+
+class PlanOut(BaseModel):
+    extra_mensual: Dinero                # el que pidió el usuario (parámetro extra_mensual)
+    extra_sugerido: Dinero               # lo que le sobra en su peor mes (Fórmula 3), en cientos
+    presupuesto_mensual: Dinero          # mínimos del mes 1 + extra; fijo todos los meses
+    escenario_base: Literal["solo_minimo"]
+    escenario_base_texto: str            # contra qué se compara el ahorro (mostrarlo en pantalla)
+    deudas: list[DeudaPlanOut]           # en el orden del ranking
+    total: TotalPlanOut
+    calendario: list[MesPlanOut]         # mes a mes, hasta liquidar (máximo 120 meses)
+    calendario_completo: bool            # False si el plan dura más de 120 meses
+    mensaje: str
+    avisos: list[AvisoPlanOut]
+    supuestos: list[str]                 # por qué es una estimación
+
+
 class PriorizadorOut(BaseModel):
     estado: Literal["calculado", "sin_deudas"]
     periodo: str                         # AAAA-MM
@@ -79,3 +141,4 @@ class PriorizadorOut(BaseModel):
     msi_mes_total: Dinero                # mensualidades MSI del mes: pagos fijos (RN-19)
     bola_de_nieve: Optional[BolaDeNieveOut]
     supuestos: list[str]
+    plan: Optional[PlanOut]              # T45; None si no hay deudas con intereses

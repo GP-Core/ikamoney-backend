@@ -1,18 +1,22 @@
-# Priorizador de deudas (T43)
+# Priorizador de deudas (T43) y plan de pagos (T45)
 
 Ordena las tarjetas y deudas del usuario por **costo real** y dice, en dinero, por qué cada una va en su posición. Aplica la Fórmula 9 de T25 (método avalancha) y las reglas RN-18 a RN-20.
+
+Con ese orden, la sección `plan` (T45) dice cuánto abonar a cada deuda cada mes, cuándo se liquida cada una y cuánto se ahorra en intereses contra un escenario base explícito (Fórmula 10). Es el mismo endpoint, no uno nuevo.
 
 Usa el mismo motor de cálculo:
 - la tasa mensual efectiva, el interés del mes y el pago mínimo salen de `app/services/formulas.py` (Fórmulas 5 y 6);
 - los datos del usuario se leen con `proyeccion.preparar()` (T33).
 
-Lo consumen la pantalla del ranking (T44) y el plan de pagos (T45). **Si la estructura cambia, avisar a los dos antes.**
+Lo consumen la pantalla del ranking (T44) y la vista del plan de pagos (T46). **Si la estructura cambia, avisar a los dos antes.**
 
 ## 1. Endpoint
 
 | Método y ruta | Qué devuelve |
 | --- | --- |
-| `GET /api/v1/priorizador` | Ranking por costo real, deudas que no entran al ranking con su motivo, resumen de qué hacer este mes y comparación con el consejo popular. |
+| `GET /api/v1/priorizador?extra_mensual=500` | Ranking por costo real, deudas que no entran al ranking con su motivo, resumen de qué hacer este mes, comparación con el consejo popular y plan de pagos. |
+
+`extra_mensual` es opcional (0 por defecto): el dinero extra al mes que el usuario quiere abonar a sus deudas, además de los mínimos. Debe ser mayor o igual a cero y con máximo dos decimales; si no, responde 422 `DATOS_INVALIDOS`. Va en snake_case, como el resto de la API (en el contrato de la tarea aparece como `extraMensual`).
 
 Requiere token JWT y devuelve solo los datos del usuario de la sesión. Solo lee: no modifica nada.
 
@@ -125,14 +129,118 @@ En el perfil de ejemplo, el consejo popular de pagar primero la deuda más chica
 | 4 | Deudas al 0 % | No entran al ranking (`SIN_INTERESES`), por la misma razón que los MSI en RN-19. Agregarlo a RN-19. |
 | 5 | Tarjetas o deudas sin tasa | No se pueden ordenar sin saber cuánto cuestan: van a `sin_ranking` con `SIN_TASA` y se le pide al usuario capturarla. |
 | 6 | Tarjetas inactivas | No se ordenan, igual que en la proyección y el score. |
-| 7 | RN-20 | El priorizador marca `abonar_extra` solo en la posición 1 y da el total de mínimos del mes. El reparto mes a mes del excedente es T45 (Fórmula 10). |
+| 7 | RN-20 | El priorizador marca `abonar_extra` solo en la posición 1 y da el total de mínimos del mes. El reparto mes a mes del excedente está en la sección `plan` (T45). |
 
-## 7. Archivos
+## 7. Plan de pagos y ahorro estimado (T45)
+
+### 7.1 Respuesta: sección `plan`
+
+Perfil de T25 / T26 con `extra_mensual=3000` (CP-12):
+
+```json
+"plan": {
+  "extra_mensual": 3000.0,
+  "extra_sugerido": 3800.0,
+  "presupuesto_mensual": 5162.0,
+  "escenario_base": "solo_minimo",
+  "escenario_base_texto": "Pagar solo el mínimo de cada deuda cada mes, sin abonos extra. El ahorro es la diferencia de intereses entre ese escenario y este plan.",
+  "deudas": [
+    { "clave": "tarjeta-1", "nombre": "Tarjeta A", "posicion": 1,
+      "meses_plan": 6, "liquidacion_plan": "2026-08", "intereses_plan": 3844.47,
+      "meses_base": 73, "liquidacion_base": "2032-03", "intereses_base": 48384.47 },
+    { "clave": "tarjeta-2", "nombre": "Tarjeta B", "posicion": 2,
+      "meses_plan": 8, "liquidacion_plan": "2026-10", "intereses_plan": 3493.63,
+      "meses_base": 74, "liquidacion_base": "2032-04", "intereses_base": 21785.91 }
+  ],
+  "total": { "meses_plan": 8, "liquidacion_plan": "2026-10", "intereses_plan": 7338.1,
+             "meses_base": 74, "liquidacion_base": "2032-04", "intereses_base": 70170.38,
+             "ahorro": 62832.28, "meses_menos": 66 },
+  "calendario": [
+    { "mes": 1, "periodo": "2026-03", "total_pagado": 5162.0, "intereses": 1682.0, "saldo_total": 28520.0,
+      "pagos": [ { "clave": "tarjeta-1", "pago": 4460.0, "abono_extra": 3000.0, "saldo_final": 16700.0 },
+                 { "clave": "tarjeta-2", "pago": 702.0, "abono_extra": 0.0, "saldo_final": 11820.0 } ] }
+  ],
+  "calendario_completo": true,
+  "mensaje": "Con $3,000.00 extra al mes liquidas tus deudas en 8 meses (2026-10) y pagas $7,338.10 de intereses. Pagando solo el mínimo tardarías 74 meses y pagarías $70,170.38: te ahorras $62,832.28.",
+  "avisos": [],
+  "supuestos": ["Es una estimación: supone que no haces compras nuevas con tus tarjetas y que las tasas de interés no cambian.", "…"]
+}
+```
+
+| Campo | Significado |
+| --- | --- |
+| `plan` | `null` si no hay deudas con intereses (o ninguna tiene pago mensual). |
+| `extra_sugerido` | Lo que le sobra al usuario en su peor mes de la proyección (Fórmula 3), redondeado hacia abajo a cientos. Es lo que la pantalla puede proponer (REQ-PD, paso 3). |
+| `presupuesto_mensual` | Pagos mínimos del mes 1 + `extra_mensual`. Se mantiene fijo todos los meses. |
+| `escenario_base` / `escenario_base_texto` | Contra qué se compara el ahorro. **La pantalla debe mostrar este texto junto a la cifra.** |
+| `deudas[]` | Cuándo se liquida cada deuda (`meses_*`, `liquidacion_*` en AAAA-MM) y cuántos intereses paga, con el plan y con el escenario base. `null` si no se liquida. |
+| `total` | Lo mismo para todas las deudas, más `ahorro` (intereses base − intereses del plan) y `meses_menos`. |
+| `calendario[]` | Mes a mes: cuánto pagar a cada deuda (`pago` = mínimo + `abono_extra`) y el saldo que queda. Máximo 120 meses; `calendario_completo` es `false` si el plan dura más. |
+| `mensaje` | Frase lista para la pantalla. |
+| `avisos[]` | `EXCEDENTE_NO_SOSTENIBLE`, `SIN_DINERO_EXTRA`, `BASE_NO_SE_LIQUIDA`, `PLAN_NO_SE_LIQUIDA`, `DEUDA_SIN_PAGO_MENSUAL`. |
+| `supuestos[]` | Por qué es una estimación. **La pantalla debe mostrarlos.** |
+
+### 7.2 Cómo se calcula (Fórmula 10)
+
+1. **Presupuesto:** pagos mínimos del mes 1 (Fórmula 6; en deudas, su pago mensual) + `extra_mensual`. Se mantiene fijo.
+2. **Cada mes:** primero se cubre el mínimo de todas las deudas (RN-20). Lo que sobra del presupuesto se abona a la deuda con mejor posición en el ranking que siga viva.
+3. **Al liquidar una deuda:** lo que sobra pasa a la siguiente del ranking en el mismo mes. Como el presupuesto es fijo, lo que baja cada mínimo también se abona.
+4. **Intereses:** los de cada mes, con el saldo de ese mes (Fórmula 5), usando la misma función que el ranking.
+5. **Escenario base:** cada deuda paga solo su mínimo cada mes, recalculado con su saldo, hasta liquidarse.
+6. **Ahorro:** intereses del escenario base − intereses del plan, con los dos totales ya redondeados a centavos, como la hoja T26.
+7. **Horizonte:** hasta 600 meses (50 años). Si una deuda no se liquida en ese tiempo, se considera que nunca se termina de pagar.
+
+### 7.3 Escenario de comparación (decisión para confirmar con el equipo)
+
+El ahorro se compara contra **pagar solo el mínimo de cada deuda cada mes, sin abonos extra**:
+
+- Es el escenario que define la Fórmula 10 de T25 ("Ahorro = Intereses solo mínimos − Intereses plan") y el que usa la hoja T26 en CP-12.
+- Es lo que hace la mayoría de los usuarios a los que va dirigida la app (supuesto general de T25).
+- "Pagar parejo" (repartir el mismo presupuesto entre todas las deudas) no se usó porque T25 no lo define y no hay caso en T26 para verificarlo. Si el equipo lo prefiere, se puede agregar como segundo escenario sin cambiar el resto.
+
+Por eso, con `extra_mensual=0` también hay ahorro: el plan mantiene fijo el pago de hoy, mientras que el mínimo baja cada mes conforme baja el saldo.
+
+### 7.4 Supuestos (van en `supuestos` de la respuesta)
+
+- No hay compras nuevas con tarjeta y las tasas de interés no cambian.
+- Los pagos se hacen a tiempo, sin cargos por atraso ni comisiones.
+- El presupuesto se mantiene fijo cada mes.
+- Los intereses se calculan con el saldo de cada mes; en tarjetas incluyen IVA.
+- Los MSI se pagan aparte y no entran al plan (RN-19).
+
+### 7.5 Verificación contra T25 / T26
+
+| Dato (CP-12, extra de $3,000) | T25 / T26 | Sistema |
+| --- | --- | --- |
+| Meses para liquidar | 8 | 8 (A en el mes 6, B en el 8) |
+| Intereses del plan | $7,338.10 | $7,338.10 |
+| Ahorro | $62,832.28 | $62,832.28 |
+| Solo el mínimo | 74 meses, más de $70,000 | 74 meses, $70,170.38 |
+
+| `extra_mensual` | Meses | Intereses | Ahorro |
+| --- | --- | --- | --- |
+| 0 | 29 | $30,423.69 | $39,746.69 |
+| 500 | 20 | $18,937.76 | $51,232.62 |
+| 3,000 | 8 | $7,338.10 | $62,832.28 |
+
+### 7.6 Avisos
+
+| Código | Cuándo |
+| --- | --- |
+| `EXCEDENTE_NO_SOSTENIBLE` | El extra es mayor que lo que le sobra en su peor mes (CE-09). El plan sí se calcula. |
+| `SIN_DINERO_EXTRA` | La proyección dice que no le sobra dinero al mes: revisar gastos antes de abonar más (REQ-PD-04). |
+| `BASE_NO_SE_LIQUIDA` | Con el mínimo, alguna deuda nunca se liquida (CE-02); el ahorro no se puede calcular completo. |
+| `PLAN_NO_SE_LIQUIDA` | Con el presupuesto del plan tampoco se liquida. |
+| `DEUDA_SIN_PAGO_MENSUAL` | Una deuda del ranking no tiene pago mensual capturado y queda fuera del plan. |
+
+## 8. Archivos
 
 | Archivo | Contenido |
 | --- | --- |
-| `app/services/priorizador.py` | Costo real, orden, razones, exclusiones y respuesta. |
+| `app/services/priorizador.py` | Costo real, orden, razones, exclusiones y respuesta (T43). Llama al plan. |
+| `app/services/plan_pagos.py` | Plan de pagos, escenario base, ahorro y calendario (T45). |
 | `app/schemas/priorizador.py` | Estructura de la respuesta (este documento). |
-| `app/api/routes/priorizador.py` | `GET /priorizador`. |
+| `app/api/routes/priorizador.py` | `GET /priorizador` con el parámetro `extra_mensual`. |
 | `app/main.py` | Registro del router. |
-| `tests/unit/test_priorizador_reglas.py`, `tests/api/test_priorizador.py` | Pruebas. |
+| `tests/unit/test_priorizador_reglas.py`, `tests/api/test_priorizador.py` | Pruebas de T43. |
+| `tests/unit/test_plan_pagos.py`, `tests/api/test_plan_pagos.py` | Pruebas de T45. |
