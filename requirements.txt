@@ -7,6 +7,8 @@ pydantic-settings==2.5.2
 PyJWT==2.9.0
 tzdata==2024.2
 python-multipart==0.0.12
+# --- contraseñas (T56): hash Argon2id para confirmar el borrado de la cuenta ---
+argon2-cffi==23.1.0
 # --- estados de cuenta (T31): lectura del PDF y cliente de IA ---
 pdfplumber==0.11.10
 google-genai==2.25.0
