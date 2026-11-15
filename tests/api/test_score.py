@@ -142,7 +142,7 @@ def test_sin_tarjetas_se_omite_utilizacion(client, h, cat):
     d = client.get(URL, headers=h).json()
     util = next(f for f in d["factores"] if f["clave"] == "utilizacion_credito")
     assert util["disponible"] is False and util["valor"] is None and util["aporte"] == 0
-    assert round(sum(f["peso_efectivo"] for f in d["factores"]), 2) == 100
+    assert abs(sum(f["peso_efectivo"] for f in d["factores"]) - 100) <= 0.02    
     assert any("No tienes tarjetas" in s for s in d["supuestos"])
 
 

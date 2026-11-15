@@ -42,11 +42,26 @@ def _f(valor: Optional[Decimal], decimales: str = "0.01") -> Optional[float]:
 # ------------------------------------------------------------ datos de entrada
 def _evaluar(db: Session, usuario: Usuario, reglas: ReglasScore):
     """Devuelve (periodo, resultado o None, faltantes, supuestos)."""
-    prep = proyeccion.preparar(db, usuario, formulas.HORIZONTE_MIN)
+    return evaluar(proyeccion.preparar(db, usuario, formulas.HORIZONTE_MIN), reglas)
+
+
+def evaluar(prep: proyeccion.Preparacion, reglas: ReglasScore,
+            entrada_proyeccion: Optional[formulas.EntradaProyeccion] = None,
+            pendiente_msi_extra: Decimal = CERO):
+    """Score del mes 1 a partir de los datos ya preparados por el motor de balance (T33).
+
+    Sin argumentos extra da exactamente el score de GET /score. El simulador de compras (T41)
+    la llama con la proyección que ya incluye la compra (`entrada_proyeccion`) y, si la compra
+    es a MSI, con su monto en `pendiente_msi_extra`, porque el total ocupa la línea de crédito
+    desde el mes 1 (Fórmula 4 de T25). Así el score de la simulación sale del mismo motor.
+
+    Devuelve (periodo, resultado o None, faltantes, supuestos).
+    """
+    proy = entrada_proyeccion if entrada_proyeccion is not None else prep.entrada
     periodo = prep.mes_inicio
     faltantes: list[FaltanteOut] = []
 
-    mes1 = formulas.proyectar(prep.entrada, formulas.HORIZONTE_MIN).meses[0] if prep.entrada else None
+    mes1 = formulas.proyectar(proy, formulas.HORIZONTE_MIN).meses[0] if proy else None
     if mes1 is None or mes1.ingresos <= 0:                                     # CE-03
         mensaje = ("Registra tu ingreso neto mensual (sueldo, honorarios u otros) para calcular "
                    "tu score." if not prep.ingresos else
@@ -65,6 +80,7 @@ def _evaluar(db: Session, usuario: Usuario, reglas: ReglasScore):
     pendiente = sum((formulas.pendiente_msi(p.monto_mensualidad, p.num_mensualidades,
                                             p.mensualidades_pagadas)
                      for p in prep.planes if p.tarjeta_id in activas), CERO)
+    pendiente += pendiente_msi_extra
     comportamiento = reglas.comportamiento_por_defecto
     entrada = EntradaScore(
         ingreso=mes1.ingresos, compromisos=mes1.compromisos,
