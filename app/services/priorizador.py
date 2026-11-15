@@ -9,6 +9,9 @@ Reglas de negocio:
 - RN-18: el orden es por costo real (tasa, uso del límite e intereses), no por lo que se debe.
 - RN-19: las compras a MSI no entran al orden, pero se cuentan como pagos fijos del mes.
 - RN-20: primero se cubre el mínimo de todas las deudas; lo extra va a la posición 1.
+
+La sección `plan` de la respuesta (cuánto abonar a cada deuda, cuándo se liquida y cuánto se
+ahorra) es de T45 y vive en app/services/plan_pagos.py.
 """
 from dataclasses import dataclass
 from decimal import Decimal
@@ -82,17 +85,26 @@ def tasa_mensual(c: Candidata) -> Decimal:
     return c.tasa_anual / _DOCE
 
 
+def interes_y_minimo(c: Candidata, saldo: Decimal) -> tuple[Decimal, Optional[Decimal]]:
+    """Interés del mes y pago mínimo con un saldo dado. Tarjetas: Fórmulas 5 y 6. Deudas: su
+    pago mensual, sin pasar de lo que se debe (None si no se capturó). Un saldo liquidado no
+    genera intereses ni pago. Lo usan el ranking (T43) y el plan de pagos (T45)."""
+    if saldo <= UMBRAL_SALDO_CERO:
+        return CERO, CERO
+    if c.tipo == "tarjeta":
+        interes = formulas.interes_mes(saldo, c.tasa_anual)                    # Fórmula 5
+        return interes, formulas.pago_minimo(saldo, interes, c.limite or CERO)  # Fórmula 6
+    interes = saldo * tasa_mensual(c)
+    pago = None if c.pago_mensual is None else min(c.pago_mensual, saldo + interes)
+    return interes, pago
+
+
 def costo(c: Candidata) -> Costo:
     r = tasa_mensual(c)
-    if c.tipo == "tarjeta":
-        interes = formulas.interes_mes(c.saldo, c.tasa_anual)                  # Fórmula 5
-        limite = c.limite or CERO
-        pago = formulas.pago_minimo(c.saldo, interes, limite)                 # Fórmula 6
-        utilizacion = (c.saldo + c.pendiente_msi) / limite if limite > 0 else None
-    else:
-        interes = c.saldo * r
-        pago = None if c.pago_mensual is None else min(c.pago_mensual, c.saldo + interes)
-        utilizacion = None
+    interes, pago = interes_y_minimo(c, c.saldo)
+    limite = c.limite or CERO
+    utilizacion = ((c.saldo + c.pendiente_msi) / limite
+                   if c.tipo == "tarjeta" and limite > 0 else None)
     return Costo(candidata=c, tasa_mensual=r, interes_mes=interes,
                  costo_anual_compuesto=(1 + r) ** 12 - 1, utilizacion=utilizacion,
                  pago_minimo=pago)
@@ -305,13 +317,19 @@ def _msi(prep: proyeccion.Preparacion) -> tuple[list[SinRankingOut], Decimal]:
     return salida, total
 
 
-def priorizar(db: Session, usuario: Usuario) -> PriorizadorOut:
-    """Ranking de deudas por costo real con la razón de cada posición (T43)."""
-    prep = proyeccion.preparar(db, usuario, formulas.HORIZONTE_MIN)
+def priorizar(db: Session, usuario: Usuario, extra_mensual: Decimal = CERO) -> PriorizadorOut:
+    """Ranking de deudas por costo real con la razón de cada posición (T43) y el plan de pagos
+    con `extra_mensual` pesos adicionales al mes (T45)."""
+    from app.services import plan_pagos       # import aquí: plan_pagos usa este módulo
+
+    prep = proyeccion.preparar(db, usuario, formulas.HORIZONTE_DEFECTO)
     entran, fuera = separar(candidatas(prep))
     orden = ordenar(entran)
     msi, msi_mes = _msi(prep)
     minimos = sum((k.pago_minimo for k in orden if k.pago_minimo is not None), CERO)
+    # Lo que le sobra al usuario en su peor mes (Fórmula 3, T33): tope del extra (CE-09)
+    flujo_minimo = (formulas.proyectar(prep.entrada, formulas.HORIZONTE_DEFECTO).flujo_minimo
+                    if prep.entrada else None)
 
     supuestos = ["El orden sigue el método avalancha de T25 (Fórmula 9): primero la tasa mensual "
                  "más alta, luego la tarjeta más usada y luego la de menor saldo.",
@@ -327,4 +345,5 @@ def priorizar(db: Session, usuario: Usuario) -> PriorizadorOut:
         resumen=resumen(orden, minimos, msi_mes),
         intereses_mes_total=_c(sum((k.interes_mes for k in orden), CERO)),
         pagos_minimos_total=_c(minimos), msi_mes_total=_c(msi_mes),
-        bola_de_nieve=bola_de_nieve(orden), supuestos=supuestos)
+        bola_de_nieve=bola_de_nieve(orden), supuestos=supuestos,
+        plan=plan_pagos.armar_plan(orden, extra_mensual, flujo_minimo, prep.periodos))
