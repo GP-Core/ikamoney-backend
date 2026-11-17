@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errores import ApiError, campo_error
 from app.core.seguridad import verificar_contrasena
-from app.models import (Categoria, Deuda, EstadoCuenta, Gasto, Ingreso, Movimiento, PlanMsi,
+from app.models import (Alerta, AlertaConfiguracion, Categoria, Deuda, EstadoCuenta, Gasto, Ingreso, Movimiento, PlanMsi,
                         ScoreHistorial, Tarjeta, Usuario)
 from app.schemas.cuenta import CuentaEliminar
 
@@ -34,6 +34,8 @@ def eliminar(db: Session, usuario: Usuario, datos: CuentaEliminar) -> None:
         delete(Tarjeta).where(Tarjeta.usuario_id == uid),
         delete(Deuda).where(Deuda.usuario_id == uid),
         delete(ScoreHistorial).where(ScoreHistorial.usuario_id == uid),
+        delete(Alerta).where(Alerta.usuario_id == uid),
+        delete(AlertaConfiguracion).where(AlertaConfiguracion.usuario_id == uid),
         delete(Categoria).where(Categoria.usuario_id == uid),   # las base (usuario_id NULL) se quedan
         delete(Usuario).where(Usuario.id == uid),
     )

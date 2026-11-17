@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 
 from app.core.database import Base
 from app.core.seguridad import crear_token, hash_contrasena
-from app.models import (Categoria, Deuda, EstadoCuenta, Gasto, Ingreso, Movimiento, PlanMsi,
+from app.models import (Alerta, AlertaConfiguracion, Categoria, Deuda, EstadoCuenta, Gasto, Ingreso, Movimiento, PlanMsi,
                         ScoreHistorial, Tarjeta, Usuario)
 from tests.conftest import DEUDA, TARJETA, TestSession
 
@@ -57,6 +57,9 @@ def _llenar(client, uid: int, h: dict, cat_base: int) -> None:
     crear("movimientos", {"tipo": "gasto", "concepto": "Renta", "monto": 8000,
                           "frecuencia": "mensual", "fecha": "2026-03-01",
                           "categoria_id": cat_base, "clase": "fijo"})
+    # Umbral bajo: la tarjeta (25 % usado) genera una alerta y deja guardada la configuración.
+    r = client.put("/api/v1/alertas/configuracion", json={"umbral_utilizacion": 10}, headers=h)
+    assert r.status_code == 200, r.text
     # Estado de cuenta, movimiento e historial de score no tienen endpoint de alta.
     with TestSession() as db:
         estado = EstadoCuenta(tarjeta_id=tarjeta["id"], periodo_inicio=date(2026, 2, 11),
@@ -87,6 +90,8 @@ def _conteos(uid: int) -> dict[str, int]:
         "plan_msi": (PlanMsi, PlanMsi.tarjeta_id.in_(tarjetas)),
         "deuda": (Deuda, Deuda.usuario_id == uid),
         "score_historial": (ScoreHistorial, ScoreHistorial.usuario_id == uid),
+        "alerta": (Alerta, Alerta.usuario_id == uid),
+        "alerta_configuracion": (AlertaConfiguracion, AlertaConfiguracion.usuario_id == uid),
     }
     with TestSession() as db:
         return {nombre: db.scalar(select(func.count()).select_from(modelo).where(filtro))

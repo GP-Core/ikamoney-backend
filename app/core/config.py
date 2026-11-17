@@ -17,6 +17,24 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_horas: int = 24
 
+    # --- Recuperación de contraseña (sin correo real: ver docs/AUTH.md) ---
+    recuperacion_minutos: int = 30
+    recuperacion_enlace_prueba: bool = False  # True solo en desarrollo: devuelve el enlace en la respuesta
+    frontend_url: str = "http://localhost:5173"
+
+    # --- Cifrado de campos sensibles (T53b): 32 bytes en base64. Sin ella la API no arranca ---
+    cifrado_llave: str = ""
+
+    # --- Tareas internas (T47/T50): llave que manda el cron en X-Llave-Interna. Vacía = ruta cerrada ---
+    cron_secret: str = ""
+
+    # --- Correo de alertas (T50): API HTTP de Brevo. Sin CORREO_API_KEY no se envía nada ---
+    correo_api_key: str = ""
+    correo_remitente: str = ""                 # dirección verificada en el proveedor
+    correo_remitente_nombre: str = "IKAMONEY"
+    correo_url: str = "https://api.brevo.com/v3/smtp/email"
+    correo_timeout_s: float = 5
+
     # --- Reglas de negocio ---
     zona_horaria: str = "America/Mexico_City"
     max_mensualidades: int = 60  # tope razonable para MSI (T18 solo fija el mínimo: 2)

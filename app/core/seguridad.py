@@ -1,8 +1,9 @@
 """Token JWT (T17 §3): el usuario sale del token; nunca del cuerpo ni de la URL.
 
-El módulo /auth (T51) es de otra tarea. Esta dependencia solo valida el token que ese
-módulo emita con el mismo settings.jwt_secret (campo `sub` = id del usuario).
+El módulo /auth (T51) emite los tokens con settings.jwt_secret (campo `sub` = id del usuario);
+usuario_actual los valida. Los tokens de recuperación de contraseña llevan `uso` y no sirven de sesión.
 """
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -40,12 +41,38 @@ def crear_token(usuario_id: int, horas: int | None = None) -> str:
     return jwt.encode({"sub": str(usuario_id), "exp": exp}, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
+def huella_contrasena(hash_guardado: str) -> str:
+    """Resumen corto del hash vigente: al cambiar la contraseña deja de coincidir (enlace de un solo uso)."""
+    return hashlib.sha256(hash_guardado.encode()).hexdigest()[:16]
+
+
+def crear_token_recuperacion(usuario: Usuario) -> str:
+    """JWT de recuperación (vence en settings.recuperacion_minutos). No sirve como sesión."""
+    exp = datetime.now(timezone.utc) + timedelta(minutes=settings.recuperacion_minutos)
+    return jwt.encode({"sub": str(usuario.id), "uso": "recuperacion",
+                       "huella": huella_contrasena(usuario.contrasena_hash), "exp": exp},
+                      settings.jwt_secret, algorithm=settings.jwt_algorithm)
+
+
+def leer_token_recuperacion(token: str) -> tuple[int, str] | None:
+    """(usuario_id, huella) si el token es de recuperación y vigente; si no, None."""
+    try:
+        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        if payload.get("uso") != "recuperacion":
+            return None
+        return int(payload["sub"]), str(payload["huella"])
+    except (jwt.PyJWTError, KeyError, ValueError):
+        return None
+
+
 def usuario_actual(cred: HTTPAuthorizationCredentials | None = Depends(_bearer),
                    db: Session = Depends(get_db)) -> Usuario:
     if cred is None:
         raise ApiError(401, "NO_AUTENTICADO", "Inicia sesión para continuar.")
     try:
         payload = jwt.decode(cred.credentials, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+        if "uso" in payload:   # token de recuperación: no es una sesión
+            raise ValueError
         usuario_id = int(payload["sub"])
     except (jwt.PyJWTError, KeyError, ValueError):
         raise ApiError(401, "TOKEN_INVALIDO", "La sesión venció o no es válida.")

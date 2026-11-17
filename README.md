@@ -65,6 +65,8 @@ Abre `.env` y cambia los valores `cambia_esto`:
 | `MYSQL_PORT` | Puerto de MySQL **en tu computadora**. Por defecto `3307`; si ya lo usas, cámbialo |
 | `DATABASE_URL` | `mysql+pymysql://<MYSQL_USER>:<MYSQL_PASSWORD>@db:3306/<MYSQL_DATABASE>` |
 | `JWT_SECRET` | Una cadena larga y aleatoria para firmar los tokens |
+| `CIFRADO_LLAVE` | **Obligatoria.** 32 bytes en base64 con los que se cifran los montos sensibles (T53b); sin ella la API no arranca. Cómo generarla y por qué guardarla aparte: [docs/CIFRADO.md](docs/CIFRADO.md) |
+| `CRON_SECRET` · `CORREO_API_KEY` · `CORREO_REMITENTE` | Revisión diaria de alertas y correo (T47/T50). Opcionales: ver [docs/NOTIFICACIONES.md](docs/NOTIFICACIONES.md) |
 | `CORS_ORIGINS` | Orígenes del frontend, separados por comas (por defecto `http://localhost:5173`) |
 | `AI_API_KEY` | Llave de la API de Gemini para leer estados de cuenta. Sin ella, `/estados-cuenta/extraer` responde 503 |
 
@@ -85,6 +87,7 @@ DATABASE_URL=mysql+pymysql://ikamoney:ClaveApp456@db:3306/ikamoney
 CORS_ORIGINS=http://localhost:5173
 AI_API_KEY=
 JWT_SECRET=pon-aqui-una-cadena-larga-y-aleatoria
+CIFRADO_LLAVE=genera-una-con-el-comando-de-docs-CIFRADO.md
 ```
 
 ### 3. Levantar los contenedores
@@ -249,12 +252,14 @@ También puedes conectarte con un cliente gráfico (MySQL Workbench, DBeaver) a 
    # Windows (PowerShell)
    $env:DATABASE_URL = "mysql+pymysql://ikamoney:ClaveApp456@localhost:3307/ikamoney"
    $env:JWT_SECRET = "pon-aqui-una-cadena-larga-y-aleatoria"
+   $env:CIFRADO_LLAVE = "<la de docs/CIFRADO.md>"
    ```
 
    ```sh
    # macOS / Linux
    export DATABASE_URL="mysql+pymysql://ikamoney:ClaveApp456@localhost:3307/ikamoney"
    export JWT_SECRET="pon-aqui-una-cadena-larga-y-aleatoria"
+   export CIFRADO_LLAVE="<la de docs/CIFRADO.md>"
    ```
 
    > La configuración busca el `.env` una carpeta por encima de este repo, así que sin Docker lo más fiable es definir las variables a mano como arriba.

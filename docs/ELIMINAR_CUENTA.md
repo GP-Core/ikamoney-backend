@@ -50,8 +50,9 @@ docker compose exec api python -c "from sqlalchemy import select; from app.core.
 | 6 | `tarjeta` | |
 | 7 | `deuda` | |
 | 8 | `score_historial` | |
-| 9 | `categoria` | Solo las propias; las 9 base (`usuario_id NULL`) se conservan |
-| 10 | `usuario` | Su `ON DELETE CASCADE` arrastra las tablas sin modelo, como `resumen_mensual` |
+| 9 | `alerta` y `alerta_configuracion` | Alertas (T47) |
+| 10 | `categoria` | Solo las propias; las 9 base (`usuario_id NULL`) se conservan |
+| 11 | `usuario` | Su `ON DELETE CASCADE` arrastra las tablas sin modelo, como `resumen_mensual` |
 
 No se usa `confirmar()`: su `recalcular()` guardaría un score nuevo del usuario que se está borrando.
 
@@ -67,7 +68,7 @@ Las pruebas corren en SQLite y no detectan esto; por eso el borrado se verificó
 
 ### Tablas nuevas (alertas, simulaciones guardadas, suscripciones push)
 
-Todavía no existen. Cuando se agreguen:
+`alerta` y `alerta_configuracion` ya están en la lista. Las demás (simulaciones guardadas, suscripciones push) todavía no existen. Cuando se agreguen:
 
 1. Su llave hacia `usuario` (o hacia una tabla del usuario) debe ser `ON DELETE CASCADE`. `tests/api/test_cuenta.py::test_toda_llave_foranea_define_que_pasa_al_borrar` falla si no lo es.
 2. Agrégala a los pasos de `app/services/cuenta.py` y a `_conteos()` en `tests/api/test_cuenta.py`.

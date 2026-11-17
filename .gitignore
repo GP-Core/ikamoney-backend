@@ -7,6 +7,9 @@ __pycache__/
 
 # Entorno virtual
 .venv/
-
+contexto/
+PLAN.md
 # Instrucciones locales 
 CLAUDE.md
+
+.github/

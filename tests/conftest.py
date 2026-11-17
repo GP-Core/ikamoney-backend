@@ -4,6 +4,7 @@ import os
 # esa conexión: abajo se sustituye get_db por una base SQLite en memoria.
 os.environ.setdefault("DATABASE_URL", "sqlite://")
 os.environ["JWT_SECRET"] = "secreto-de-pruebas"
+os.environ["CIFRADO_LLAVE"] = "cHJ1ZWJhcy1kZS1jaWZyYWRvLTMyLWJ5dGVzLS0tLS0="   # 32 bytes, solo para pruebas
 
 from datetime import date  # noqa: E402
 

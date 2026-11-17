@@ -2,7 +2,7 @@
 Carga de datos de prueba de IKAMONEY (perfil de T25/T26) usando los endpoints reales.
 
 Que hace:
-  1. Crea el usuario demo (demo@ikamoney.dev) si no existe y genera su token JWT.
+  1. Crea el usuario demo (demo@ikamoney.dev, contrasena Demo12345) si no existe y genera su token JWT.
   2. Detecta las rutas de la API leyendo /openapi.json (no hay que escribirlas a mano).
   3. Crea: 2 tarjetas, 2 planes MSI, 1 ingreso, 1 gasto fijo y 1 gasto variable.
   4. Consulta la proyeccion y comprueba que el mes 1 de flujo 3,838 y acumulado 8,838.
@@ -27,6 +27,7 @@ from datetime import date
 
 BASE = "http://localhost:8000"          # la API vista desde dentro del contenedor
 CORREO = "demo@ikamoney.dev"
+CONTRASENA = "Demo12345"                # para entrar desde la pantalla de login (POST /api/auth/login)
 AHORRO_INICIAL = 5000
 ESPERADO_MES1 = {"flujo": 3838.0, "acumulado": 8838.0}
 
@@ -39,19 +40,23 @@ def obtener_token() -> str:
     from sqlalchemy import select
 
     from app.core.database import SessionLocal
-    from app.core.seguridad import crear_token
+    from app.core.seguridad import crear_token, hash_contrasena, verificar_contrasena
     from app.models import Usuario
 
     with SessionLocal() as db:
         usuario = db.execute(select(Usuario).where(Usuario.correo == CORREO)).scalars().first()
         if usuario is None:
-            usuario = Usuario(nombre="Demo", correo=CORREO, contrasena_hash="no-usar")
+            usuario = Usuario(nombre="Demo", correo=CORREO, contrasena_hash=hash_contrasena(CONTRASENA))
             db.add(usuario)
             db.commit()
             db.refresh(usuario)
             print(f"Usuario demo creado (id {usuario.id}).")
         else:
             print(f"Usuario demo ya existia (id {usuario.id}).")
+            if not verificar_contrasena(CONTRASENA, usuario.contrasena_hash):
+                usuario.contrasena_hash = hash_contrasena(CONTRASENA)   # usuarios viejos traian "no-usar"
+                db.commit()
+                print("  Se le puso la contrasena de prueba.")
         return crear_token(usuario.id)
 
 
@@ -269,8 +274,10 @@ def mostrar_token():
     print("\n" + "=" * 70)
     print("TOKEN (dura 24 horas):\n")
     print(TOKEN)
-    print("\nEn el navegador, con el frontend abierto (F12 > Console):\n")
-    print(f"localStorage.setItem('ikamoney_token', '{TOKEN}')")
+    print(f"\nO entra desde la pantalla de login con {CORREO} / {CONTRASENA} (VITE_AUTH_MOCK=false).")
+    print("\nPara dejar el token en el navegador, con el frontend abierto (F12 > Console):\n")
+    print(f"sessionStorage.setItem('ikamoney:token', '{TOKEN}')")
+    print("sessionStorage.setItem('ikamoney:token-expira', String(Date.now() + 86400000))")
     print("\nLuego recarga con F5. Si Chrome bloquea el pegado, escribe: allow pasting")
     print("=" * 70)
 

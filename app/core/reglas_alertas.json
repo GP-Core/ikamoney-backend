@@ -1,0 +1,43 @@
+{
+  "version_reglas": "1.0",
+  "_nota": "Reglas AL-01 a AL-04 inferidas de RF-64/RF-65, CE-10 y el semáforo de 09-investigacion-financiera.md. Confirmar contra T15. Los textos no llevan montos ni saldos (IC-07).",
+  "defecto": {
+    "umbral_utilizacion": 70,
+    "dias_anticipacion": 3,
+    "canal_correo": true,
+    "canal_push": false
+  },
+  "rangos": {
+    "umbral_utilizacion": [10, 100],
+    "dias_anticipacion": [1, 15]
+  },
+  "horizonte_meses": 12,
+  "enfriamiento_horas": 24,
+  "ventana_aviso_horas": 48,
+  "reglas": {
+    "AL-01": {
+      "severidad": "critica",
+      "titulo": "Tus compromisos superan tus ingresos",
+      "mensaje": "En {mes} tus compromisos serían mayores que tus ingresos.",
+      "accion": "Revisa tu proyección y reduce gastos o pagos antes de ese mes."
+    },
+    "AL-02": {
+      "severidad": "atencion",
+      "titulo": "Utilización alta en {tarjeta}",
+      "mensaje": "{tarjeta} usa {umbral} % o más de su límite de crédito.",
+      "accion": "Paga parte del saldo o evita nuevas compras con esta tarjeta."
+    },
+    "AL-03": {
+      "severidad": "atencion",
+      "titulo": "Se acerca el pago de {tarjeta}",
+      "mensaje": "El pago de {tarjeta} vence el {fecha}.",
+      "accion": "Págala antes de esa fecha para evitar intereses y cargos."
+    },
+    "AL-04": {
+      "severidad": "critica",
+      "titulo": "{tarjeta} rebasó su límite",
+      "mensaje": "Entre el saldo y los pagos a meses pendientes, {tarjeta} supera su límite de crédito.",
+      "accion": "Prioriza bajar este saldo y revisa tus compras a MSI."
+    }
+  }
+}

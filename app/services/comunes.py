@@ -18,5 +18,8 @@ def obtener_del_usuario(db: Session, modelo, id_: int, usuario: Usuario, error: 
 def confirmar(db: Session, usuario: Usuario) -> None:
     """Cierre común de toda escritura: envía los cambios, recalcula (T17 §3) y confirma."""
     db.flush()
-    recalcular(db, usuario)
+    revision = recalcular(db, usuario)
     db.commit()
+    if getattr(revision, "nuevas", 0):   # alertas nuevas: avisar ya, fuera de la transacción (T50)
+        from app.services import alertas
+        alertas._avisar(db, usuario)

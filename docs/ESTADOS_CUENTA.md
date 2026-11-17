@@ -175,3 +175,29 @@ Los PDF de prueba **no se versionan**. Usa los anonimizados de T08 y al menos do
 - Los PDF escaneados no se procesan (no hay OCR).
 - A veces la IA invierte el CAT y la tasa de interés.
 - Aun con temperatura 0, la respuesta puede variar un poco entre corridas.
+
+## Borrado del PDF (T53a · IS-02, RN-03)
+
+El PDF vive solo en memoria y se cierra en todos los caminos. Lo comprueban las pruebas
+`test_el_pdf_no_deja_rastros_en_ningun_camino` y compañeras (`tests/api/test_estados_cuenta.py`): en cada
+caso el archivo queda cerrado, no pasó a un temporal en disco, no hay filas nuevas en la base y el texto
+del PDF no aparece en los logs.
+
+| Camino | Qué pasa con el PDF |
+|---|---|
+| Éxito | `archivo.leer()` lo copia a `bytes` y cierra el archivo; `extraer()` borra esos bytes tras sacar el texto |
+| Archivo inválido, no PDF o más de 10 MB | `archivo.leer()` cierra en su `finally` |
+| Más de 11 MB | El middleware `limitar_subida_pdf` (`app/main.py`) responde 422 por `Content-Length`, sin leer el cuerpo: Starlette no llega a crear un temporal |
+| PDF con contraseña, dañado o escaneado | `del datos_pdf` en el `finally` de `extraer()` |
+| No es estado de cuenta, `DATOS_SENSIBLES` | Solo existe el texto; nada se envía a la IA |
+| IA caída, sin tiempo o JSON inválido | Se registra la causa (mensaje del error, no el texto del PDF) y se responde 503 |
+| Excepción inesperada | 500 genérico `ERROR_INTERNO`, sin detalles |
+
+Límites conocidos:
+
+- Una petición **sin** `Content-Length` (transferencia fragmentada) no la corta el middleware; la ruta la rechaza
+  después si pesa más de 10 MB, pero Starlette pudo haberla pasado a un temporal. Los clientes del producto
+  (el navegador) siempre mandan `Content-Length`.
+- En memoria, Python no garantiza sobrescribir los bytes al liberarlos; se descartan, no se "destruyen".
+- RNF-23 (que Gemini no conserve el PDF): lo que se envía es el **texto ya anonimizado**, nunca el PDF. Falta
+  confirmar qué retiene Google según el plan contratado de la API. Pendiente de quien administre la llave.

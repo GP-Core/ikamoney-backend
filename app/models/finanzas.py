@@ -7,14 +7,14 @@ from sqlalchemy import (CHAR, TIMESTAMP, Boolean, CheckConstraint, Date, Enum,
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.models.comunes import Dinero, Id, Marcas, SmallUns, Tasa, TinyUns, fk
+from app.core.cifrado import dinero_cifrado
+from app.models.comunes import Id, Marcas, SmallUns, Tasa, TinyUns, fk
 
 
 class Tarjeta(Base, Marcas):
     __tablename__ = "tarjeta"
+    # Sin CHECK sobre limite_credito ni saldo_actual: van cifrados y se validan en los esquemas (T53b)
     __table_args__ = (
-        CheckConstraint("limite_credito >= 0", name="ck_tarjeta_limite"),
-        CheckConstraint("saldo_actual >= 0", name="ck_tarjeta_saldo"),
         CheckConstraint("dia_corte BETWEEN 1 AND 31", name="ck_tarjeta_dia_corte"),
         CheckConstraint("dia_pago BETWEEN 1 AND 31", name="ck_tarjeta_dia_pago"),
         CheckConstraint("tasa_anual IS NULL OR (tasa_anual >= 0 AND tasa_anual <= 999.99)",
@@ -25,8 +25,8 @@ class Tarjeta(Base, Marcas):
     nombre: Mapped[str] = mapped_column(String(60), nullable=False)
     banco: Mapped[str] = mapped_column(String(60), nullable=False)
     ultimos_4: Mapped[Optional[str]] = mapped_column(CHAR(4), nullable=True)
-    limite_credito: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
-    saldo_actual: Mapped[Decimal] = mapped_column(Dinero, nullable=False, default=Decimal("0.00"))
+    limite_credito: Mapped[Decimal] = mapped_column(dinero_cifrado("tarjeta", "limite_credito"), nullable=False)
+    saldo_actual: Mapped[Decimal] = mapped_column(dinero_cifrado("tarjeta", "saldo_actual"), nullable=False, default=Decimal("0.00"))
     dia_corte: Mapped[int] = mapped_column(TinyUns, nullable=False)
     dia_pago: Mapped[int] = mapped_column(TinyUns, nullable=False)
     tasa_anual: Mapped[Optional[Decimal]] = mapped_column(Tasa, nullable=True)
@@ -45,9 +45,9 @@ class EstadoCuenta(Base, Marcas):
     periodo_inicio: Mapped[date] = mapped_column(Date, nullable=False)
     fecha_corte: Mapped[date] = mapped_column(Date, nullable=False)
     fecha_limite_pago: Mapped[date] = mapped_column(Date, nullable=False)
-    saldo_al_corte: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
-    pago_minimo: Mapped[Optional[Decimal]] = mapped_column(Dinero, nullable=True)
-    pago_no_intereses: Mapped[Optional[Decimal]] = mapped_column(Dinero, nullable=True)
+    saldo_al_corte: Mapped[Decimal] = mapped_column(dinero_cifrado("estado_cuenta", "saldo_al_corte"), nullable=False)
+    pago_minimo: Mapped[Optional[Decimal]] = mapped_column(dinero_cifrado("estado_cuenta", "pago_minimo"), nullable=True)
+    pago_no_intereses: Mapped[Optional[Decimal]] = mapped_column(dinero_cifrado("estado_cuenta", "pago_no_intereses"), nullable=True)
     archivo_ref: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     estatus: Mapped[str] = mapped_column(
         Enum("procesando", "extraido", "revisado", "error", name="estado_estatus"),
@@ -57,20 +57,18 @@ class EstadoCuenta(Base, Marcas):
 class PlanMsi(Base, Marcas):
     __tablename__ = "plan_msi"
     __table_args__ = (
-        CheckConstraint("monto_original > 0", name="ck_msi_monto"),
         CheckConstraint("num_mensualidades >= 2", name="ck_msi_num"),
         CheckConstraint("mensualidades_pagadas >= 0 AND mensualidades_pagadas <= num_mensualidades",
                         name="ck_msi_pagadas"),
-        CheckConstraint("monto_mensualidad > 0", name="ck_msi_mensualidad"),
     )
     id: Mapped[int] = mapped_column(Id, primary_key=True, autoincrement=True)
     tarjeta_id: Mapped[int] = fk("tarjeta.id")
     categoria_id: Mapped[Optional[int]] = fk("categoria.id", "SET NULL", nullable=True)
     descripcion: Mapped[str] = mapped_column(String(120), nullable=False)
-    monto_original: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
+    monto_original: Mapped[Decimal] = mapped_column(dinero_cifrado("plan_msi", "monto_original"), nullable=False)
     num_mensualidades: Mapped[int] = mapped_column(SmallUns, nullable=False)
     mensualidades_pagadas: Mapped[int] = mapped_column(SmallUns, nullable=False, default=0)
-    monto_mensualidad: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
+    monto_mensualidad: Mapped[Decimal] = mapped_column(dinero_cifrado("plan_msi", "monto_mensualidad"), nullable=False)
     fecha_compra: Mapped[date] = mapped_column(Date, nullable=False)
     estatus: Mapped[str] = mapped_column(
         Enum("activo", "liquidado", "cancelado", name="msi_estatus"),
@@ -89,7 +87,7 @@ class Movimiento(Base, Marcas):
         nullable=False, default="pendiente")
     fecha: Mapped[date] = mapped_column(Date, nullable=False)
     descripcion: Mapped[str] = mapped_column(String(255), nullable=False)
-    monto: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
+    monto: Mapped[Decimal] = mapped_column(dinero_cifrado("movimiento", "monto"), nullable=False)
     tipo: Mapped[str] = mapped_column(
         Enum("cargo", "pago", "interes", "comision", "mensualidad_msi", name="mov_tipo"),
         nullable=False)
@@ -97,7 +95,7 @@ class Movimiento(Base, Marcas):
     plan_msi_id: Mapped[Optional[int]] = fk("plan_msi.id", "SET NULL", nullable=True)
     fecha_extraida: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     descripcion_extraida: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    monto_extraido: Mapped[Optional[Decimal]] = mapped_column(Dinero, nullable=True)
+    monto_extraido: Mapped[Optional[Decimal]] = mapped_column(dinero_cifrado("movimiento", "monto_extraido"), nullable=True)
     tipo_extraido: Mapped[Optional[str]] = mapped_column(
         Enum("cargo", "pago", "interes", "comision", "mensualidad_msi", name="mov_tipo_ext"),
         nullable=True)
@@ -107,10 +105,7 @@ class Movimiento(Base, Marcas):
 
 class Deuda(Base, Marcas):
     __tablename__ = "deuda"
-    __table_args__ = (
-        CheckConstraint("monto_original > 0", name="ck_deuda_monto"),
-        CheckConstraint("saldo_actual >= 0", name="ck_deuda_saldo"),
-    )
+    # Sin CHECK sobre monto_original ni saldo_actual: van cifrados y se validan en los esquemas (T53b)
     id: Mapped[int] = mapped_column(Id, primary_key=True, autoincrement=True)
     usuario_id: Mapped[int] = fk("usuario.id")
     nombre: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -118,10 +113,10 @@ class Deuda(Base, Marcas):
     tipo: Mapped[str] = mapped_column(
         Enum("prestamo_personal", "credito_auto", "credito_hipotecario", "familiar_amigo",
              "otro", name="deuda_tipo"), nullable=False)
-    monto_original: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
-    saldo_actual: Mapped[Decimal] = mapped_column(Dinero, nullable=False)
+    monto_original: Mapped[Decimal] = mapped_column(dinero_cifrado("deuda", "monto_original"), nullable=False)
+    saldo_actual: Mapped[Decimal] = mapped_column(dinero_cifrado("deuda", "saldo_actual"), nullable=False)
     tasa_anual: Mapped[Optional[Decimal]] = mapped_column(Tasa, nullable=True)
-    pago_mensual: Mapped[Optional[Decimal]] = mapped_column(Dinero, nullable=True)
+    pago_mensual: Mapped[Optional[Decimal]] = mapped_column(dinero_cifrado("deuda", "pago_mensual"), nullable=True)
     dia_pago: Mapped[Optional[int]] = mapped_column(TinyUns, nullable=True)
     fecha_inicio: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     estatus: Mapped[str] = mapped_column(
